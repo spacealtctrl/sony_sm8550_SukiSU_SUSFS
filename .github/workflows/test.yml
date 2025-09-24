@@ -1,0 +1,536 @@
+name: SukiSU Kernel Build TEST
+
+on:
+  workflow_dispatch:
+    inputs:
+      sukisu_branch:
+        description: 'SukiSU Branch'
+        required: true
+        default: 'Stable(标准)'
+        type: choice
+        options:
+          - Stable(标准)
+          - Dev(开发)
+      enable_susfs:
+        description: 'Enable SUSFS'
+        required: true
+        default: true
+        type: boolean
+      enable_kpm:
+        description: 'Enable KPM (Kernel Patch Module)'
+        required: true
+        default: true
+        type: boolean
+      enable_zram:
+        description: 'Enable ZRAM optimizations (LZ4KD)'
+        required: true
+        default: true
+        type: boolean
+env:
+  AOSP_TOOLCHAIN_BRANCH: android15
+  AOSP_CLANG_VERSION: r522817
+  KERNEL_LOCALVERSION: spacealtctrl-sukisu
+  ANDROID_VERSION: android14
+  KERNEL_VERSION: 5.15
+
+jobs:
+  build:
+    name: Build pdx234
+    permissions: { contents: write }
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Install packages
+        env:
+          PACKAGES:
+            binutils-arm-linux-gnueabi
+            binutils-aarch64-linux-gnu
+            ccache
+            libelf-dev
+            libssl-dev
+            bc
+            bison
+            flex
+            python3
+            python-is-python3
+            dwarves
+            build-essential
+            libc6-dev
+            curl
+            git
+            zip
+            unzip
+        run: |
+          sudo apt update > /dev/null
+          sudo apt install -y ${{ env.PACKAGES }} > /dev/null
+      - name: Sync kernel repository
+        uses: actions/checkout@v4
+        with:
+          repository: spacealtctrl/android_kernel_sony_sm8550
+          ref: lineage-22.2
+          path: kernel
+
+      - name: Clean kernel build environment
+        working-directory: kernel
+        run: |
+          echo "Cleaning kernel build environment..."
+          make mrproper
+          make clean
+      - name: Cache Clang
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: clang
+          key: clang-${{ env.AOSP_TOOLCHAIN_BRANCH }}-${{ env.AOSP_CLANG_VERSION }}
+
+      - name: Download Clang
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p clang &&
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/${{ env.AOSP_TOOLCHAIN_BRANCH }}-release/clang-${{ env.AOSP_CLANG_VERSION }}.tar.gz" |
+          tar xz -C clang
+      - name: Cache ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: kernel-pdx234-sukisu
+          restore-keys: kernel-pdx234-sukisu
+          max-size: 5G
+          save: true
+
+      - name: Setup swap
+        run: |
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          sudo swapon -s
+      - name: Clone SukiSU and SUSFS dependencies
+        run: |
+          echo "Cloning SukiSU and SUSFS dependencies..."
+          git clone https://github.com/ShirkNeko/susfs4ksu.git -b gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
+          git clone https://github.com/Tools-cx-app/kernel_patches.git
+          git clone https://github.com/ShirkNeko/SukiSU_patch.git
+      - name: Clone additional repositories for LZ4 upgrade
+        run: |
+          echo "Cloning additional repository for LZ4 1.10.0 upgrade..."
+          git clone https://github.com/zzh20188/GKI_KernelSU_SUSFS.git zzh_patches
+      - name: Upgrade LZ4 to version 1.10.0
+        working-directory: kernel
+        run: |
+          echo "Upgrading LZ4 to version 1.10.0..."
+          
+          # Remove old LZ4 files
+          files=(
+              "lib/lz4/lz4_compress.c"
+              "lib/lz4/lz4_decompress.c"
+              "lib/lz4/lz4defs.h"
+              "lib/lz4/lz4hc_compress.c"
+          )
+          
+          for file in "${files[@]}"; do
+              if [ -e "$file" ]; then
+                  rm "$file"
+                  echo "$file removed"
+              else
+                  echo "$file does not exist, skipping"
+              fi
+          done
+          
+          # Copy new LZ4 1.10.0 files
+          cp -r ../zzh_patches/zram/lz4/* ./lib/lz4/
+          cp -r ../zzh_patches/zram/include/linux/* ./include/linux/
+          
+          # Apply LZ4 1.10.0 patch for kernel 5.15
+          if [ -f "../zzh_patches/zram/${{ env.KERNEL_VERSION }}/lz4_1.10.0.patch" ]; then
+            cp ../zzh_patches/zram/${{ env.KERNEL_VERSION }}/lz4_1.10.0.patch ./
+            echo "Applying LZ4 1.10.0 patch..."
+            patch -p1 -F 3 --fuzz=5 < lz4_1.10.0.patch || true
+          else
+            echo "Warning: LZ4 1.10.0 patch not found for kernel ${{ env.KERNEL_VERSION }}"
+          fi
+          
+          # Fix F2FS Makefile if needed
+          if [ -f "fs/f2fs/Makefile" ]; then
+              if ! grep -qF "f2fs-\$(CONFIG_F2FS_IOSTAT) += iostat.o" "fs/f2fs/Makefile"; then
+                  echo "f2fs-\$(CONFIG_F2FS_IOSTAT) += iostat.o" >> "fs/f2fs/Makefile"
+                  echo "Added F2FS iostat configuration"
+              fi
+          fi
+      - name: Add SukiSU
+        working-directory: kernel
+        run: |
+          echo "Adding SukiSU to kernel..."
+          
+          # Determine branch based on user selection
+          if [ "${{ github.event.inputs.sukisu_branch }}" == "Stable(标准)" ]; then
+            echo "Using SukiSU Stable branch (susfs-main)"
+            BRANCH="-s susfs-main"
+          elif [ "${{ github.event.inputs.sukisu_branch }}" == "Dev(开发)" ]; then
+            echo "Using SukiSU Dev branch (susfs-test)"
+            BRANCH="-s susfs-test"
+          else
+            echo "Invalid branch selection, defaulting to stable"
+            BRANCH="-s susfs-main"
+          fi
+          
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash $BRANCH
+          
+          # Verify KernelSU was added
+          if [ ! -d "KernelSU" ]; then
+            echo "Error: KernelSU directory not found!"
+            exit 1
+          fi
+      - name: Apply SUSFS patches for SukiSU
+        if: ${{ github.event.inputs.enable_susfs == 'true' }}
+        working-directory: kernel
+        run: |
+          echo "Applying SUSFS patches..."
+          
+          # Copy SUSFS core files
+          cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./
+          cp ../susfs4ksu/kernel_patches/fs/* ./fs/ || true
+          cp ../susfs4ksu/kernel_patches/include/linux/* ./include/linux/ || true
+          
+          # Apply SUSFS base patch
+          patch -p1 --fuzz=3 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+          
+          # Apply SukiSU specific patches
+          echo "Applying SukiSU specific patches..."
+          cd KernelSU
+          
+          # Apply syscall hooks for SukiSU
+          cp ../../SukiSU_patch/hooks/syscall_hooks.patch ../
+          cd ..
+          patch -p1 -F 3 < syscall_hooks.patch || true
+      - name: Apply ZRAM optimizations (LZ4KD)
+        if: ${{ github.event.inputs.enable_zram == 'true' }}
+        working-directory: kernel
+        run: |
+          echo "Applying ZRAM LZ4KD optimizations..."
+          
+          # Copy LZ4K source files
+          cp -r ../SukiSU_patch/other/zram/lz4k/include/linux/* ./include/linux/ || true
+          cp -r ../SukiSU_patch/other/zram/lz4k/lib/* ./lib/ || true
+          cp -r ../SukiSU_patch/other/zram/lz4k/crypto/* ./crypto/ || true
+          cp -r ../SukiSU_patch/other/zram/lz4k_oplus ./lib/ || true
+          
+          # Apply LZ4KD patches
+          if [ -f "../SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}/lz4kd.patch" ]; then
+            cp ../SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}/lz4kd.patch ./
+            echo "Applying lz4kd patch..."
+            patch -p1 -F 3 < lz4kd.patch || true
+          fi
+          
+          if [ -f "../SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}/lz4k_oplus.patch" ]; then
+            cp ../SukiSU_patch/other/zram/zram_patch/${{ env.KERNEL_VERSION }}/lz4k_oplus.patch ./
+            echo "Applying lz4k_oplus patch..."
+            patch -p1 -F 3 < lz4k_oplus.patch || true
+          fi
+      - name: Apply additional patches
+        working-directory: kernel
+        run: |
+          # Apply hide features patch for SukiSU
+          if [ -f "../SukiSU_patch/69_hide_stuff.patch" ]; then
+            cp ../SukiSU_patch/69_hide_stuff.patch ./
+            patch -p1 -F 3 < 69_hide_stuff.patch || true
+          fi
+      - name: Configure kernel features
+        working-directory: kernel
+        run: |
+          echo "Adding KernelSU configurations..."
+          
+          # Find the correct defconfig file for SM8550
+          DEFCONFIG="arch/arm64/configs/pdx234_defconfig"
+          
+          echo "Using defconfig: $DEFCONFIG"
+          
+          # KernelSU SukiSU configuration
+          echo "CONFIG_KSU=y" >> "$DEFCONFIG"
+          if [ "${{ github.event.inputs.enable_kpm }}" == "true" ]; then
+            echo "CONFIG_KPM=y" >> "$DEFCONFIG"
+          fi
+          echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> "$DEFCONFIG"
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> "$DEFCONFIG"
+
+          # Add kallsyms
+            echo "CONFIG_KALLSYMS=y" >> "$DEFCONFIG"
+            echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG"
+          
+          # Conditionally add SUSFS configuration
+          if [ "${{ github.event.inputs.enable_susfs }}" == "true" ]; then
+            echo "CONFIG_KSU_SUSFS=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> "$DEFCONFIG"
+            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> "$DEFCONFIG"
+          fi
+          
+          # Conditionally add ZRAM and compression configuration
+          if [ "${{ github.event.inputs.enable_zram }}" == "true" ]; then
+            echo "CONFIG_ZSMALLOC=y" >> "$DEFCONFIG"
+            echo "CONFIG_ZRAM=y" >> "$DEFCONFIG"
+            echo "CONFIG_CRYPTO_LZ4HC=y" >> "$DEFCONFIG"
+            echo "CONFIG_CRYPTO_LZ4K=y" >> "$DEFCONFIG"
+            echo "CONFIG_CRYPTO_LZ4KD=y" >> "$DEFCONFIG"
+            echo "CONFIG_CRYPTO_842=y" >> "$DEFCONFIG"
+            echo "CONFIG_CRYPTO_LZ4K_OPLUS=n" >> "$DEFCONFIG"
+            echo "CONFIG_ZRAM_WRITEBACK=y" >> "$DEFCONFIG"
+            echo "CONFIG_CRYPTO_LZO=y" >> "$DEFCONFIG"
+          fi
+                    
+          # Additional features (always enabled)
+          echo "CONFIG_TMPFS_XATTR=y" >> "$DEFCONFIG"
+          echo "CONFIG_TMPFS_POSIX_ACL=y" >> "$DEFCONFIG"
+          echo "CONFIG_IP_NF_TARGET_TTL=y" >> "$DEFCONFIG"
+          echo "CONFIG_IP6_NF_TARGET_HL=y" >> "$DEFCONFIG"
+          echo "CONFIG_IP6_NF_MATCH_HL=y" >> "$DEFCONFIG"
+          
+          # BBR TCP congestion control (always enabled)
+          echo "CONFIG_TCP_CONG_ADVANCED=y" >> "$DEFCONFIG"
+          echo "CONFIG_TCP_CONG_BBR=y" >> "$DEFCONFIG"
+          echo "CONFIG_NET_SCH_FQ=y" >> "$DEFCONFIG"
+          echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
+      - name: Update kernel version string
+        working-directory: kernel
+        run: |
+          # Build feature string based on enabled options
+          FEATURES=""
+          if [ "${{ github.event.inputs.enable_susfs }}" == "true" ]; then
+            FEATURES="${FEATURES}-SUSFS"
+          fi
+          if [ "${{ github.event.inputs.enable_kpm }}" == "true" ]; then
+            FEATURES="${FEATURES}-KPM"
+          fi
+          
+          # Update localversion with feature identifier
+          if [ -f "scripts/setlocalversion" ]; then
+            sed -i "\$s|echo \"\$res\"|echo \"\$res${FEATURES}\"|" scripts/setlocalversion
+          fi
+      - name: Configure git for clean build
+        working-directory: kernel
+        run: |
+          echo "Configuring git to prevent dirty build..."
+          git config --global user.email "spacealtctrl@pm.me"
+          git config --global user.name "spacealtctrl"
+          rm -rf .gitmodules 2>/dev/null || true
+          git rm --cached KernelSU 2>/dev/null || true
+          
+          git add .
+          git commit -m "Applied SukiSU patches and configurations" || true
+      - name: Optimize ccache
+        run: |
+          ccache -M 10G
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=1
+          ccache --set-config=max_size=10G
+          ccache --set-config=sloppiness=file_macro,time_macros,include_file_mtime,include_file_ctime
+          echo "CCACHE_COMPRESS=1" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESSLEVEL=1" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=10G" >> $GITHUB_ENV
+          echo "CCACHE_HARDLINK=true" >> $GITHUB_ENV
+      - name: Pre-build Setup
+        run: |
+          sudo mkdir -p /mnt/tmpfs
+          sudo mount -t tmpfs -o size=20G tmpfs /mnt/tmpfs
+          mkdir -p /mnt/tmpfs/out
+          ln -sf /mnt/tmpfs/out kernel/out
+      - name: Build kernel
+        working-directory: kernel
+        env:
+          MAKE_ARGS:
+            O=out LLVM=1 LLVM_IAS=1 ARCH=arm64
+            -j$(nproc --all) CC="ccache clang"
+            CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            LOCALVERSION=-${{ env.KERNEL_LOCALVERSION }}
+            KCFLAGS="-Wframe-larger-than=15000"
+        run: |
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          export PAHOLE=/usr/bin/pahole
+          export BTF_DEBUG_INFO=y
+          echo "Building with $(nproc --all) parallel jobs..."
+          make ${{ env.MAKE_ARGS }} pdx234_defconfig all
+      - name: Apply KPM patch
+        if: ${{ github.event.inputs.enable_kpm == 'true' }}
+        run: |
+          echo "Applying KPM patch to kernel Image..."
+          cd kernel/out/arch/arm64/boot/
+          curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux" -o patch
+          chmod 777 patch
+          ./patch
+          rm -rf Image
+          mv oImage Image
+          cd ../../../../..
+      - name: Save ccache stats
+        if: always()
+        run: |
+          ccache -s
+          echo "Ccache statistics saved"
+      - name: Package AnyKernel3
+        run: |
+          # Clone WildPlusKernel/AnyKernel3 with gki-2.0 branch
+          git clone https://github.com/WildPlusKernel/AnyKernel3.git -b gki-2.0 AnyKernel3
+          
+          # Copy kernel Image
+          cp kernel/out/arch/arm64/boot/Image AnyKernel3/
+          
+          # Determine branch suffix for filename
+          if [ "${{ github.event.inputs.sukisu_branch }}" == "Stable(标准)" ]; then
+            BRANCH_SUFFIX="stable"
+          else
+            BRANCH_SUFFIX="dev"
+          fi
+          
+          # Create AnyKernel3.zip
+          cd AnyKernel3
+          zip -r9 "../AnyKernel3-pdx234-sukisu-${BRANCH_SUFFIX}.zip" * -x .git .github README.md *placeholder
+          cd ..
+      - name: Copy kernel Image for upload
+        run: |
+          cp kernel/out/arch/arm64/boot/Image Image
+      - name: Upload files
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-pdx234-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}
+          path: |
+            AnyKernel3-pdx234-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}.zip
+            Image
+          overwrite: true
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: success()
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-pdx234-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp artifacts/Image release-assets/Image
+          cp artifacts/AnyKernel3-pdx234-sukisu-*.zip release-assets/
+          
+          # Download appropriate SukiSU APK based on branch
+          if [ "${{ github.event.inputs.sukisu_branch }}" == "Dev(开发)" ]; then
+            echo "Fetching latest dev/pre-release APK..."
+            # Get the latest pre-release APK
+            LATEST_DEV=$(curl -s https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases | \
+                         jq -r '.[] | select(.prerelease==true) | .assets[].browser_download_url | select(contains(".apk"))' | \
+                         head -1)
+            if [ -n "$LATEST_DEV" ]; then
+              APK_NAME=$(basename "$LATEST_DEV")
+              curl -L "$LATEST_DEV" -o "release-assets/$APK_NAME"
+              echo "Downloaded dev APK: $APK_NAME"
+            else
+              echo "No dev release found, using stable v3.1.9"
+              curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.1.9/SukiSU_v3.1.9_13307-release.apk" \
+                   -o release-assets/SukiSU_v3.1.9_13307-release.apk
+            fi
+          else
+            echo "Downloading stable APK v3.1.9..."
+            curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.1.9/SukiSU_v3.1.9_13307-release.apk" \
+                 -o release-assets/SukiSU_v3.1.9_13307-release.apk
+          fi
+          
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+
+      - name: Generate release tag and notes
+        id: release_info
+        run: |
+          # Generate timestamp tag
+          TIMESTAMP=$(date +%Y%m%d%H%M)
+          TAG="pdx234-v1.0.0-r${TIMESTAMP}"
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+          
+          # Set release name
+          RELEASE_NAME="PDX234 Kernel: SukiSU & SUSFS v1.5.9"
+          echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
+          
+          cat << 'EOF' > release-notes.md
+          This release includes **SukiSU** for Sony Xperia 1 V PDX234 (SM8550)
+          on Lineage 22.2
+          
+          Features:
+          -> SukiSU-${{ github.event.inputs.sukisu_branch }}
+          -> SUSFS ඞ v1.5.9
+          -> Manual Syscall Hooks for better hiding
+          -> Magic Mount Support
+          -> Simple hiding for LineageOS detection
+          -> Futile hiding for jit-zygote-cache detection
+          -> BBR Support
+          -> KALLSYMS Support
+          -> LZ4 1.10.0 Upgrade [zzh20188 patch (https://github.com/zzh20188/GKI_KernelSU_SUSFS)]
+          ${{ github.event.inputs.enable_kpm == 'true' && '-> KPM Support' || '-> KPM not supported' }}
+          -> **LZ4KD** ${{ github.event.inputs.enable_zram == 'true' && 'supported' || 'not supported' }}
+          
+          <details>
+          <summary>Notes:</summary>
+          - -> Device specific build for Sony Xperia with SM8550 SoC
+          - -> Based on LineageOS 22.2 kernel source
+          - -> In SUS SU Mode 2, it will show as disabled or incompatible, the reason is that non-kprobe hooks were used (when compiling the kernel), and non-kprobe hooks are no longer needed!
+          - -> In the latest version of susfs, flashing AK3 compressed package with Kernel Flasher will brick your device, try [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher)!
+          </details>
+          
+          Modules:
+          -> https://github.com/sidex15/ksu_module_susfs
+          
+          Manager:
+          -> https://github.com/SukiSU-Ultra/SukiSU-Ultra
+          
+          <details>
+          <summary>Commit Information</summary>
+          
+          Build compiled with:
+          - **SukiSU Branch**: ${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'susfs-main' || 'susfs-test' }}
+          - **Device**: PDX234 (Sony Xperia)
+          - **Base Kernel**: 5.15
+          - **Android Version**: 15
+          - **LineageOS Base**: 22.2
+          - **Clang Version**: r522817
+          - **LZ4 1.10.0**: Upgrade from [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS)
+          </details>
+          EOF
+
+      - name: Install GitHub CLI
+        run: |
+          type -p gh >/dev/null || {
+            sudo apt update
+            sudo apt install -y gh
+          }
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create release using GitHub CLI for better control
+          gh release create "${{ env.RELEASE_TAG }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ env.RELEASE_NAME }}" \
+            --notes-file release-notes.md \
+            ${{ github.event.inputs.sukisu_branch == 'Dev(开发)' && '--prerelease' || '' }} \
+            release-assets/*
+
+      - name: Output release URL
+        run: |
+          echo "Release created successfully!"
+          echo "URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}"
+          echo "Release type: ${{ github.event.inputs.sukisu_branch == 'Dev(开发)' && 'Pre-release' || 'Latest release' }}"
