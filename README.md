@@ -44,7 +44,10 @@ Custom kernel for **LineageOS 22.2** on Sony Xperia 1 V devices with SM8550 SoC 
 - **KPM** - Enable/disable Kernel Patch Module
 - **ZRAM** - Enable/disable LZ4KD optimizations
 
-## Credits & Acknowledgments
+## Credits, Acknowledgments & Thanks
+
+A post from someone called 'DarkEnd91' on XDA which made me
+decide to take on this project.
 
 This project wouldn't be possible without the amazing work from:
 
