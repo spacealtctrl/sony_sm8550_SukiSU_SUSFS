@@ -1,7 +1,5 @@
 # LineageOS 22.2 Custom Kernel - SukiSU Ultra for the Sony Xperia 1 V PDX234
 
-Custom kernel for **LineageOS 22.2** on Sony Xperia 1 V devices with SM8550 SoC (PDX234), featuring SukiSU Ultra root solution and advanced hiding capabilities.
-
 ## Requirements
 
 - **ROM**: LineageOS 22.2 (Android 15)
