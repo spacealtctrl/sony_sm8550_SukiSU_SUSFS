@@ -31,6 +31,8 @@
 
 ⚠️ **Warning**: Use [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher) only when flashing on the fly.
 
+**Note**: In SUS SU Mode 2, it may show as disabled or incompatible because non-kprobe hooks are used during compilation, which are no longer needed.
+
 ## Build Variants
 
 - **Stable Branch** (`susfs-main`) - Tested and stable
@@ -84,5 +86,3 @@ This kernel is based on the Linux kernel and inherits its GPLv2 license. All mod
 This kernel is provided as-is without any warranty. Use at your own risk. Always backup your data before flashing custom kernels.
 
 ---
-
-**Note**: In SUS SU Mode 2, it may show as disabled or incompatible because non-kprobe hooks are used during compilation, which are no longer needed.
