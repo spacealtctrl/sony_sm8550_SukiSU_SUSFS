@@ -1,4 +1,4 @@
-name: SukiSU Kernel Build TEST
+name: Release TEST
 
 on:
   workflow_dispatch:
