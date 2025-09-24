@@ -5,8 +5,8 @@ Custom kernel for **LineageOS 22.2** on Sony Xperia devices with SM8550 SoC (PDX
 ## Requirements
 
 - **ROM**: LineageOS 22.2 (Android 15)
-- **Device**: Sony Xperia with SM8550 SoC (PDX234)
-- **Recovery**: TWRP or OrangeFox
+- **Device**: Sony Xperia 1 V with SM8550 SoC (PDX234)
+- **Recovery**: TWRP
 
 ## Features
 
