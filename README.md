@@ -31,7 +31,7 @@ Custom kernel for **LineageOS 22.2** on Sony Xperia devices with SM8550 SoC (PDX
 5. Install the SukiSU Manager APK
 6. Reboot
 
-⚠️ **Warning**: Use [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher) if other flashers cause issues.
+⚠️ **Warning**: Use [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher) only when flashing on the fly.
 
 ## Build Variants
 
