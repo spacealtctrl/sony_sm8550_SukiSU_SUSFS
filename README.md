@@ -26,7 +26,7 @@ Custom kernel for **LineageOS 22.2** on Sony Xperia devices with SM8550 SoC (PDX
 
 1. Ensure you're running **LineageOS 22.2**
 2. Download the latest release from [Releases](../../releases)
-3. Boot into custom recovery (TWRP/OrangeFox)
+3. Boot into custom recovery (TWRP)
 4. Flash the AnyKernel3 zip
 5. Install the SukiSU Manager APK
 6. Reboot
