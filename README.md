@@ -3,7 +3,7 @@
 ## Requirements
 
 - **ROM**: LineageOS 22.2 (Android 15)
-- **Device**: Sony Xperia 1 V with SM8550 SoC (PDX234)
+- **Device**: Sony Xperia 1 V with SM8550 (PDX234)
 - **Recovery**: TWRP
 
 ## Features
