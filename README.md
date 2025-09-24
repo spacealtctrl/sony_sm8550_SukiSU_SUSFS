@@ -15,7 +15,7 @@ Custom kernel for **LineageOS 22.2** on Sony Xperia 1 V devices with SM8550 SoC 
 - **Manual Syscall Hooks** - Better detection evasion
 - **Magic Mount Support** - Systemless modifications
 - **LZ4 1.10.0** - Upgraded compression algorithm
-- **LZ4KD & ONEPLUS_LZ4K** - Advanced ZRAM optimizations
+- **LZ4KD** - Advanced ZRAM optimizations
 - **KPM Support** - Kernel Patch Module functionality
 - **BBR TCP** - Optimized network congestion control
 - **KALLSYMS** - Enhanced kernel debugging support
