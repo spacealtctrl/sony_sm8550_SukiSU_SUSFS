@@ -31,7 +31,7 @@
 
 ⚠️ **Warning**: Use [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher) only when flashing on the fly.
 
-**Note**: In SUS SU Mode 2, it may show as disabled or incompatible because non-kprobe hooks are used during compilation, which are no longer needed.
+📃**Note**: In SUS SU Mode 2, it may show as disabled or incompatible because non-kprobe hooks are used during compilation, which are no longer needed.
 
 ## Build Variants
 
