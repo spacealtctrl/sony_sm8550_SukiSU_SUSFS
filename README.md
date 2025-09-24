@@ -52,7 +52,7 @@ This project wouldn't be possible without the amazing work from:
 - **[tiann](https://github.com/tiann)** - Original KernelSU creator
 - **[ShirkNeko](https://github.com/ShirkNeko)** - SukiSU Ultra development and patches
 - **[simonpunk](https://gitlab.com/simonpunk)** - SUSFS development
-- **[zzh20188](https://github.com/zzh20188)** - LZ4 1.10.0 upgrade patches and GKI improvements
+- **[zzh20188](https://github.com/zzh20188)** - LZ4 1.10.0 upgrade patches and improvements
 - **[Tools-cx-app](https://github.com/Tools-cx-app)** - Kernel patches repository
 - **[WildPlusKernel](https://github.com/WildPlusKernel)** - AnyKernel3 GKI branch
 
