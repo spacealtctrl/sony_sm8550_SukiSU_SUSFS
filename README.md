@@ -46,7 +46,7 @@
 
 ## Credits, Acknowledgments & Thanks
 
-A post from someone called 'DarkEnd91' on XDA which made me
+A post from someone called 'DeadEnd91' on XDA which made me
 decide to take on this project.
 
 This wouldn't be possible without the amazing work from:
