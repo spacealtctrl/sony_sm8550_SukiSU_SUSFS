@@ -1,5 +1,7 @@
 # LineageOS 22.2 Custom Kernel - SukiSU Ultra for the Sony Xperia 1 V PDX234
 
+<img src="https://github.com/spacealtctrl/sm8550_SukiSU_SUSFS/blob/main/assets/sonysuki.png" alt="SukiSU Ultra" width="400"/>
+
 ## Requirements
 
 - **ROM**: LineageOS 22.2 (Android 15)
