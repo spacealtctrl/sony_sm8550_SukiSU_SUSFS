@@ -3,8 +3,8 @@
 ## Requirements
 
 - **ROM**: LineageOS 22.2 (Android 15)
-- **Device**: Sony Xperia 1 V with SM8550 (PDX234)
-- **Recovery**: TWRP
+- **Device**: Sony Xperia 1 V (PDX234)
+- **Recovery**: [TWRP](https://xdaforums.com/t/recovery-unofficial-updated-teamwin-recovery-project-3-7-1-for-xperia-1v-03-20-2024.4662645/)
 
 ## Features
 
@@ -24,7 +24,7 @@
 
 1. Ensure you're running **LineageOS 22.2**
 2. Download the latest release from [Releases](../../releases)
-3. Boot into custom recovery (TWRP)
+3. Boot into custom recovery ([TWRP](https://xdaforums.com/t/recovery-unofficial-updated-teamwin-recovery-project-3-7-1-for-xperia-1v-03-20-2024.4662645/))
 4. Flash the AnyKernel3 zip
 5. Install the SukiSU Manager APK
 6. Reboot
