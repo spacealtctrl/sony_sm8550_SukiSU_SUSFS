@@ -59,7 +59,7 @@ This wouldn't be possible without the amazing work from:
 - **[simonpunk](https://gitlab.com/simonpunk)** - SUSFS development
 - **[zzh20188](https://github.com/zzh20188)** - LZ4 1.10.0 upgrade patches and improvements
 - **[Tools-cx-app](https://github.com/Tools-cx-app)** - Kernel patches repository
-- **[WildPlusKernel](https://github.com/WildPlusKernel)** - AnyKernel3 branch
+- **[WildKernels](https://github.com/WildKernels/AnyKernel3)** - AnyKernel3 branch
 
 ### Special Thanks
 - **LineageOS Team** - For the LineageOS 22.2 kernel source
