@@ -439,14 +439,14 @@ jobs:
               curl -L "$LATEST_DEV" -o "release-assets/$APK_NAME"
               echo "Downloaded dev APK: $APK_NAME"
             else
-              echo "No dev release found, using stable v3.1.9"
-              curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.1.9/SukiSU_v3.1.9_13307-release.apk" \
-                   -o release-assets/SukiSU_v3.1.9_13307-release.apk
+              echo "No dev release found, using stable v3.2.0"
+              curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.2.0/SukiSU_v3.2.0_13375-release.apk" \
+                   -o release-assets/SukiSU_v3.2.0_13375-release.apk
             fi
           else
-            echo "Downloading stable APK v3.1.9..."
-            curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.1.9/SukiSU_v3.1.9_13307-release.apk" \
-                 -o release-assets/SukiSU_v3.1.9_13307-release.apk
+            echo "Downloading stable APK v3.2.0..."
+            curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.2.0/SukiSU_v3.2.0_13375-release.apk" \
+                 -o release-assets/SukiSU_v3.2.0_13375-release.apk
           fi
           
           cd release-assets
@@ -456,22 +456,20 @@ jobs:
       - name: Generate release tag and notes
         id: release_info
         run: |
-          # Generate timestamp tag
-          TIMESTAMP=$(date +%Y%m%d%H%M)
-          TAG="pdx234-v1.0.0-r${TIMESTAMP}"
+          TAG="pdx234-v1.0.0-r2"
           echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
           
           # Set release name
-          RELEASE_NAME="PDX234 Kernel: SukiSU & SUSFS v1.5.9"
+          RELEASE_NAME="PDX234 Kernel: SukiSU & SUSFS v1.5.10"
           echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
           
           cat << 'EOF' > release-notes.md
-          This release includes **SukiSU** for Sony Xperia 1 V PDX234 (SM8550)
-          on Lineage 22.2
+          This release includes **SukiSU** for Sony Xperia 1 V PDX234
+          on LineageOS 22.2
           
           Features:
           -> SukiSU-${{ github.event.inputs.sukisu_branch }}
-          -> SUSFS ඞ v1.5.9
+          -> SUSFS ඞ v1.5.10
           -> Manual Syscall Hooks for better hiding
           -> Magic Mount Support
           -> Simple hiding for LineageOS detection
@@ -484,7 +482,7 @@ jobs:
           
           <details>
           <summary>Notes:</summary>
-          - -> Device specific build for Sony Xperia with SM8550 SoC
+          - -> Device specific build for Sony Xperia with SM8550
           - -> Based on LineageOS 22.2 kernel source
           - -> In SUS SU Mode 2, it will show as disabled or incompatible, the reason is that non-kprobe hooks were used (when compiling the kernel), and non-kprobe hooks are no longer needed!
           - -> In the latest version of susfs, flashing AK3 compressed package with Kernel Flasher will brick your device, try [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher)!
