@@ -11,7 +11,7 @@
 ## Features
 
 - **SukiSU Ultra** - Advanced root solution with enhanced hiding
-- **SUSFS v1.5.9 (ඞ)** - Sophisticated filesystem hiding 
+- **SUSFS (ඞ)** - Sophisticated filesystem hiding 
 - **Manual Syscall Hooks** - Better detection evasion
 - **Magic Mount Support** - Systemless modifications
 - **LZ4 1.10.0** - Upgraded compression algorithm
