@@ -1,8 +1,16 @@
-name: Release TEST
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
+      device:
+        description: 'Target Device'
+        required: true
+        default: 'pdx234'
+        type: choice
+        options:
+          - pdx234  # Xperia 1 V
+          - pdx237  # Xperia 5 V
       sukisu_branch:
         description: 'SukiSU Branch'
         required: true
@@ -35,7 +43,7 @@ env:
 
 jobs:
   build:
-    name: Build pdx234
+    name: Build ${{ github.event.inputs.device }}
     permissions: { contents: write }
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -92,8 +100,8 @@ jobs:
       - name: Cache ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: kernel-pdx234-sukisu
-          restore-keys: kernel-pdx234-sukisu
+          key: kernel-${{ github.event.inputs.device }}-sukisu
+          restore-keys: kernel-${{ github.event.inputs.device }}-sukisu
           max-size: 5G
           save: true
 
@@ -240,7 +248,7 @@ jobs:
           echo "Adding KernelSU configurations..."
           
           # Find the correct defconfig file for SM8550
-          DEFCONFIG="arch/arm64/configs/pdx234_defconfig"
+          DEFCONFIG="arch/arm64/configs/${{ github.event.inputs.device }}_defconfig"
           
           echo "Using defconfig: $DEFCONFIG"
           
@@ -359,7 +367,7 @@ jobs:
           export PAHOLE=/usr/bin/pahole
           export BTF_DEBUG_INFO=y
           echo "Building with $(nproc --all) parallel jobs..."
-          make ${{ env.MAKE_ARGS }} pdx234_defconfig all
+          make ${{ env.MAKE_ARGS }} ${{ github.event.inputs.device }}_defconfig all
       - name: Apply KPM patch
         if: ${{ github.event.inputs.enable_kpm == 'true' }}
         run: |
@@ -393,7 +401,7 @@ jobs:
           
           # Create AnyKernel3.zip
           cd AnyKernel3
-          zip -r9 "../AnyKernel3-pdx234-sukisu-${BRANCH_SUFFIX}.zip" * -x .git .github README.md *placeholder
+          zip -r9 "../AnyKernel3-${{ github.event.inputs.device }}-sukisu-${BRANCH_SUFFIX}.zip" * -x .git .github README.md *placeholder
           cd ..
       - name: Copy kernel Image for upload
         run: |
@@ -401,9 +409,9 @@ jobs:
       - name: Upload files
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-pdx234-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}
+          name: kernel-${{ github.event.inputs.device }}-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}
           path: |
-            AnyKernel3-pdx234-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}.zip
+            AnyKernel3-${{ github.event.inputs.device }}-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}.zip
             Image
           overwrite: true
 
@@ -418,14 +426,14 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: kernel-pdx234-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}
+          name: kernel-${{ github.event.inputs.device }}-sukisu-${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'stable' || 'dev' }}
           path: artifacts
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
           cp artifacts/Image release-assets/Image
-          cp artifacts/AnyKernel3-pdx234-sukisu-*.zip release-assets/
+          cp artifacts/AnyKernel3-${{ github.event.inputs.device }}-sukisu-*.zip release-assets/
           
           # Download appropriate SukiSU APK based on branch
           if [ "${{ github.event.inputs.sukisu_branch }}" == "Dev(开发)" ]; then
@@ -456,15 +464,22 @@ jobs:
       - name: Generate release tag and notes
         id: release_info
         run: |
-          TAG="pdx234-v1.0.0-r2"
+          TAG="${{ github.event.inputs.device }}-v1.0.0-r3"
           echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
           
+          # Set device name for release
+          if [ "${{ github.event.inputs.device }}" == "pdx234" ]; then
+            DEVICE_NAME="Sony Xperia 1 V"
+          else
+            DEVICE_NAME="Sony Xperia 5 V"
+          fi
+          
           # Set release name
-          RELEASE_NAME="PDX234 Kernel: SukiSU & SUSFS v1.5.10"
+          RELEASE_NAME="${{ github.event.inputs.device }} Kernel: SukiSU & SUSFS v1.5.10"
           echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
           
           cat << 'EOF' > release-notes.md
-          This release includes **SukiSU** for Sony Xperia 1 V PDX234
+          This release includes **SukiSU** for ${DEVICE_NAME} (${{ github.event.inputs.device }})
           on LineageOS 22.2
           
           Features:
@@ -499,7 +514,7 @@ jobs:
           
           Build compiled with:
           - **SukiSU Branch**: ${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'susfs-main' || 'susfs-test' }}
-          - **Device**: PDX234 (Sony Xperia)
+          - **Device**: ${{ github.event.inputs.device }} (${DEVICE_NAME})
           - **Base Kernel**: 5.15
           - **Android Version**: 15
           - **LineageOS Base**: 22.2
