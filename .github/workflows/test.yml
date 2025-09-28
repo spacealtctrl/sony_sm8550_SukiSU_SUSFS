@@ -464,7 +464,7 @@ jobs:
       - name: Generate release tag and notes
         id: release_info
         run: |
-          TAG="${{ github.event.inputs.device }}-v1.0.0-r3"
+          TAG="${{ github.event.inputs.device }}-v1.0.0-r2"
           echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
           
           # Set device name for release
