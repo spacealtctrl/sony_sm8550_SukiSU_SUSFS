@@ -1,4 +1,4 @@
-# LineageOS 22.2 Custom Kernel - SukiSU Ultra for the Sony Xperia 1 V (pdx234) & Sony Xperia 5 V (pdx237)
+# LineageOS 22.2 Custom Kernel - SukiSU Ultra for the Sony Xperia 1 V & Sony Xperia 5 V
 
 <img src="https://github.com/spacealtctrl/sm8550_SukiSU_SUSFS/blob/main/assets/sonysuki.png" alt="SukiSU Ultra" width="100" height="150"/>
 
