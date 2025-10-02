@@ -14,13 +14,13 @@
 - **SUSFS (ඞ)** - Sophisticated filesystem hiding 
 - **Manual Syscall Hooks** - Better detection evasion
 - **Magic Mount Support** - Systemless modifications
-- **LZ4 1.10.0** - Upgraded compression algorithm
-- **LZ4KD** - Advanced ZRAM optimizations
 - **KPM Support** - Kernel Patch Module functionality
 - **BBR TCP** - Optimized network congestion control
 - **KALLSYMS** - Enhanced kernel debugging support
 - **LineageOS Detection Bypass** - Hide custom ROM detection
 - **JIT Zygote Cache Hiding** - Advanced process hiding
+- **LZ4KD** - Advanced ZRAM optimizations
+- **LZ4 1.10.0** - Upgraded compression algorithm
 
 ## Installation
 
