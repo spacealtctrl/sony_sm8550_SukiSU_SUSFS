@@ -770,7 +770,6 @@ jobs:
           - **Clang Version**: ${{ env.AOSP_CLANG_VERSION }}
           - **Release Version**: ${{ github.event.inputs.release_version }}
           - **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          - **Workflow Run**: [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           </details>
           EOF
