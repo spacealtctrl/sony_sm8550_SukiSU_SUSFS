@@ -37,7 +37,7 @@ on:
       release_version:
         description: 'Release Version'
         required: true
-        default: 'v1.0.1-r1'
+        default: 'v1.5.11-r1'
         type: string
 
 env:
@@ -54,6 +54,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - name: Maximize Build Space
+        uses: AdityaGarg8/remove-unwanted-software@v5
+        with:
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+          remove-large-packages: 'true'
+          remove-swapfile: 'true'
+          remove-cached-tools: 'false'
+          verbose: 'true'
+
       - name: Install packages
         env:
           PACKAGES:
@@ -80,13 +93,11 @@ jobs:
           echo 'Acquire::http::Pipeline-Depth "5";' | sudo tee -a /etc/apt/apt.conf.d/99parallel
           sudo apt update -qq
           sudo apt install -y ${{ env.PACKAGES }} -qq
-
       - name: Initialize error log
         run: |
           echo "=== Build Process Error and Warning Log ===" > error-log.txt
           echo "Build started: $(date -u)" >> error-log.txt
           echo "" >> error-log.txt
-
       - name: Sync kernel repository
         uses: actions/checkout@v4
         with:
@@ -103,7 +114,6 @@ jobs:
           make clean 2>&1 | tee -a ../error-log.txt
           echo "✓ Kernel environment cleaned" | tee -a ../error-log.txt
           echo "" >> ../error-log.txt
-
       - name: Cache Clang
         id: cache-clang
         uses: actions/cache@v4
@@ -120,13 +130,12 @@ jobs:
           tar xz -C clang
           echo "✓ Clang downloaded and extracted" | tee -a error-log.txt
           echo "" >> error-log.txt
-
       - name: Cache ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: kernel-${{ github.event.inputs.device }}-sukisu
           restore-keys: kernel-${{ github.event.inputs.device }}-sukisu
-          max-size: 5G
+          max-size: 3G
           save: true
 
       - name: Setup swap
@@ -139,25 +148,32 @@ jobs:
           sudo swapon -s
           echo "✓ Swap configured" | tee -a error-log.txt
           echo "" >> error-log.txt
-
       - name: Clone SukiSU and SUSFS dependencies
         run: |
           echo "--- Cloning Dependencies ---" | tee -a error-log.txt
           echo "Cloning SukiSU and SUSFS dependencies in parallel..."
-          git clone --depth=1 https://github.com/ShirkNeko/susfs4ksu.git -b gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }} 2>&1 | tee -a error-log.txt &
-          git clone --depth=1 https://github.com/Tools-cx-app/kernel_patches.git 2>&1 | tee -a error-log.txt &
+          
+          # Set SUSFS branch dynamically based on kernel version
+          SUSFS_BRANCH="gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}"
+          echo "Using SUSFS branch: $SUSFS_BRANCH" | tee -a error-log.txt
+          
+          git clone --depth=1 https://gitlab.com/simonpunk/susfs4ksu.git -b "$SUSFS_BRANCH" 2>&1 | tee -a error-log.txt &
+          git clone --depth=1 https://github.com/WildPlusKernel/kernel_patches.git 2>&1 | tee -a error-log.txt &
           git clone --depth=1 https://github.com/ShirkNeko/SukiSU_patch.git 2>&1 | tee -a error-log.txt &
+          git clone --depth=1 https://github.com/zzh20188/GKI_KernelSU_SUSFS.git zzh_patches 2>&1 | tee -a error-log.txt &
           wait
           echo "✓ Dependencies cloned successfully" | tee -a error-log.txt
           echo "" >> error-log.txt
-
       - name: Clone additional repositories for LZ4 upgrade
         run: |
-          echo "Cloning additional repository for LZ4 1.10.0 upgrade..." | tee -a error-log.txt
-          git clone --depth=1 https://github.com/zzh20188/GKI_KernelSU_SUSFS.git zzh_patches 2>&1 | tee -a error-log.txt
-          echo "✓ LZ4 patches repository cloned" | tee -a error-log.txt
+          echo "Verifying LZ4 patches repository..." | tee -a error-log.txt
+          if [ -d "zzh_patches" ]; then
+            echo "✓ LZ4 patches repository already available" | tee -a error-log.txt
+          else
+            echo "✗ ERROR: LZ4 patches repository missing!" | tee -a error-log.txt
+            exit 1
+          fi
           echo "" >> error-log.txt
-
       - name: Upgrade LZ4 to version 1.10.0
         if: ${{ github.event.inputs.enable_zram == 'true' }}
         working-directory: kernel
@@ -203,7 +219,6 @@ jobs:
               fi
           fi
           echo "" >> ../error-log.txt
-
       - name: Add SukiSU
         working-directory: kernel
         run: |
@@ -235,6 +250,36 @@ jobs:
             echo "✓ KernelSU directory verified" | tee -a ../error-log.txt
           fi
           echo "" >> ../error-log.txt
+      - name: Verify SUSFS patch files exist
+        if: ${{ github.event.inputs.enable_susfs == 'true' }}
+        run: |
+          echo "--- SUSFS Patch Verification ---" | tee -a error-log.txt
+          
+          PATCH_FILE="susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch"
+          
+          if [ ! -f "$PATCH_FILE" ]; then
+            echo "✗ ERROR: SUSFS patch not found: $PATCH_FILE" | tee -a error-log.txt
+            echo "Available patches in susfs4ksu/kernel_patches/:" | tee -a error-log.txt
+            ls -la susfs4ksu/kernel_patches/ | tee -a error-log.txt
+            exit 1
+          else
+            echo "✓ Found SUSFS patch: $PATCH_FILE" | tee -a error-log.txt
+          fi
+          
+          if [ ! -d "susfs4ksu/kernel_patches/fs" ]; then
+            echo "✗ ERROR: SUSFS fs directory not found" | tee -a error-log.txt
+            exit 1
+          else
+            echo "✓ Found SUSFS fs directory" | tee -a error-log.txt
+          fi
+          
+          if [ ! -d "susfs4ksu/kernel_patches/include/linux" ]; then
+            echo "✗ ERROR: SUSFS include directory not found" | tee -a error-log.txt
+            exit 1
+          else
+            echo "✓ Found SUSFS include directory" | tee -a error-log.txt
+          fi
+          echo "" >> error-log.txt
 
       - name: Apply SUSFS patches for SukiSU
         if: ${{ github.event.inputs.enable_susfs == 'true' }}
@@ -243,33 +288,51 @@ jobs:
           echo "--- SUSFS Patch Application ---" | tee -a ../error-log.txt
           echo "Applying SUSFS patches..." | tee -a ../error-log.txt
           
+          # Copy main SUSFS patch
           cp ../susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./ 2>&1 | tee -a ../error-log.txt
+          echo "✓ Main SUSFS patch copied" | tee -a ../error-log.txt
+          
+          # Copy SUSFS filesystem files
           if cp ../susfs4ksu/kernel_patches/fs/* ./fs/ 2>&1 | tee -a ../error-log.txt; then
             echo "✓ SUSFS fs files copied" | tee -a ../error-log.txt
           else
             echo "⚠ Some SUSFS fs files not copied" | tee -a ../error-log.txt
           fi
+          
+          # Copy SUSFS include files
           if cp ../susfs4ksu/kernel_patches/include/linux/* ./include/linux/ 2>&1 | tee -a ../error-log.txt; then
             echo "✓ SUSFS include files copied" | tee -a ../error-log.txt
           else
             echo "⚠ Some SUSFS include files not copied" | tee -a ../error-log.txt
           fi
           
+          # Apply main SUSFS patch
           echo "Applying main SUSFS patch..." | tee -a ../error-log.txt
           if patch -p1 --fuzz=3 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch 2>&1 | tee -a ../error-log.txt; then
             echo "✓ Main SUSFS patch applied successfully" | tee -a ../error-log.txt
           else
             echo "⚠ Main SUSFS patch had issues (continuing)" | tee -a ../error-log.txt
           fi
+          echo "" >> ../error-log.txt
+
+      - name: Apply manual syscall hooks for SukiSU
+        working-directory: kernel
+        run: |
+          echo "--- Manual Syscall Hooks Application ---" | tee -a ../error-log.txt
+          echo "Applying SukiSU manual syscall hooks..." | tee -a ../error-log.txt
           
-          echo "Applying SukiSU specific syscall hooks patch..." | tee -a ../error-log.txt
-          cd KernelSU
-          cp ../../SukiSU_patch/hooks/syscall_hooks.patch ../ 2>&1 | tee -a ../../error-log.txt
-          cd ..
-          if patch -p1 -F 3 < syscall_hooks.patch 2>&1 | tee -a ../error-log.txt; then
-            echo "✓ Syscall hooks patch applied successfully" | tee -a ../error-log.txt
+          if [ ! -f "../kernel_patches/next/scope_min_manual_hooks_v1.4.patch" ]; then
+            echo "✗ ERROR: Manual hooks patch not found!" | tee -a ../error-log.txt
+            echo "Available patches in kernel_patches/next/:" | tee -a ../error-log.txt
+            ls -la ../kernel_patches/next/ | tee -a ../error-log.txt
+            exit 1
+          fi
+          
+          cp ../kernel_patches/next/scope_min_manual_hooks_v1.4.patch ./
+          if patch -p1 -F 3 < scope_min_manual_hooks_v1.4.patch 2>&1 | tee -a ../error-log.txt; then
+            echo "✓ Manual syscall hooks patch applied successfully" | tee -a ../error-log.txt
           else
-            echo "⚠ Syscall hooks patch had issues (continuing)" | tee -a ../error-log.txt
+            echo "⚠ Manual syscall hooks patch had issues (continuing)" | tee -a ../error-log.txt
           fi
           echo "" >> ../error-log.txt
 
@@ -308,7 +371,6 @@ jobs:
             echo "⚠ lz4kd patch not found for kernel ${{ env.KERNEL_VERSION }}" | tee -a ../error-log.txt
           fi
           echo "" >> ../error-log.txt
-
       - name: Apply additional patches
         working-directory: kernel
         run: |
@@ -325,7 +387,6 @@ jobs:
             echo "ℹ hide_stuff patch not found (optional)" | tee -a ../error-log.txt
           fi
           echo "" >> ../error-log.txt
-
       - name: Configure kernel features
         working-directory: kernel
         run: |
@@ -385,7 +446,6 @@ jobs:
           echo "CONFIG_DEFAULT_BBR=y" >> "$DEFCONFIG"
           echo "✓ Kernel configuration completed" | tee -a ../error-log.txt
           echo "" >> ../error-log.txt
-
       - name: Update kernel version string
         working-directory: kernel
         run: |
@@ -403,7 +463,6 @@ jobs:
             echo "✓ Kernel version string updated with: ${FEATURES}" | tee -a ../error-log.txt
           fi
           echo "" >> ../error-log.txt
-
       - name: Configure git for clean build
         working-directory: kernel
         run: |
@@ -421,32 +480,30 @@ jobs:
             echo "ℹ Git commit not needed or failed (continuing)" | tee -a ../error-log.txt
           fi
           echo "" >> ../error-log.txt
-
       - name: Optimize ccache
         run: |
           echo "--- Ccache Optimization ---" | tee -a error-log.txt
-          ccache -M 10G
+          ccache -M 3G
           ccache --set-config=compression=true
           ccache --set-config=compression_level=1
-          ccache --set-config=max_size=10G
+          ccache --set-config=max_size=3G
           ccache --set-config=sloppiness=file_macro,time_macros,include_file_mtime,include_file_ctime
           echo "CCACHE_COMPRESS=1" >> $GITHUB_ENV
           echo "CCACHE_COMPRESSLEVEL=1" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=10G" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
           echo "CCACHE_HARDLINK=true" >> $GITHUB_ENV
           echo "✓ Ccache configured" | tee -a error-log.txt
           echo "" >> error-log.txt
-
       - name: Pre-build Setup
         run: |
           echo "--- Pre-build Setup ---" | tee -a error-log.txt
           sudo mkdir -p /mnt/tmpfs
-          sudo mount -t tmpfs -o size=20G tmpfs /mnt/tmpfs
+          sudo mount -t tmpfs -o size=10G tmpfs /mnt/tmpfs
           mkdir -p /mnt/tmpfs/out
           ln -sf /mnt/tmpfs/out kernel/out
           echo "✓ tmpfs mounted and linked" | tee -a error-log.txt
+          df -h | tee -a error-log.txt
           echo "" >> error-log.txt
-
       - name: Build kernel
         working-directory: kernel
         env:
@@ -475,19 +532,17 @@ jobs:
           fi
           echo "Build completed: $(date -u)" | tee -a ../error-log.txt
           echo "" >> ../error-log.txt
-
       - name: Verify kernel build
         run: |
           echo "--- Build Verification ---" | tee -a error-log.txt
           echo "Verifying kernel build..."
           if [ ! -f "kernel/out/arch/arm64/boot/Image" ]; then
-            echo "✗ ERROR: Kernel Image not found! Build failed." | tee -a error-log.txt
+          echo "✗ ERROR: Kernel Image not found! Build failed." | tee -a error-log.txt
             exit 1
           fi
           echo "✓ Build verified successfully:" | tee -a error-log.txt
           ls -lh kernel/out/arch/arm64/boot/Image | tee -a error-log.txt
           echo "" >> error-log.txt
-
       - name: Apply KPM patch
         if: ${{ github.event.inputs.enable_kpm == 'true' }}
         run: |
@@ -502,7 +557,7 @@ jobs:
             exit 1
           fi
           
-          chmod 777 patch
+          chmod 755 patch
           if ./patch 2>&1 | tee -a $GITHUB_WORKSPACE/error-log.txt; then
             echo "✓ KPM patch applied successfully" | tee -a $GITHUB_WORKSPACE/error-log.txt
           else
@@ -521,7 +576,6 @@ jobs:
           fi
           cd ../../../../..
           echo "" >> error-log.txt
-
       - name: Log build configuration
         run: |
           echo "=== Build Configuration Summary ===" | tee build-info.txt
@@ -564,13 +618,11 @@ jobs:
             echo "Errors: $ERRORS" >> build-info.txt
           fi
           echo "===================================" >> build-info.txt
-
       - name: Save ccache stats
         if: always()
         run: |
           ccache -s
           echo "Ccache statistics saved"
-
       - name: Package AnyKernel3
         run: |
           git clone --depth=1 https://github.com/WildPlusKernel/AnyKernel3.git -b gki-2.0 AnyKernel3
@@ -586,11 +638,9 @@ jobs:
           cd AnyKernel3
           zip -r9 -q "../AnyKernel3-${{ github.event.inputs.device }}-sukisu-${BRANCH_SUFFIX}.zip" * -x .git .github README.md *placeholder
           cd ..
-
       - name: Copy kernel Image for upload
         run: |
           cp kernel/out/arch/arm64/boot/Image Image
-
       - name: Upload files
         uses: actions/upload-artifact@v4
         with:
@@ -622,24 +672,25 @@ jobs:
           cp artifacts/build-info.txt release-assets/build-info.txt
           cp artifacts/AnyKernel3-${{ github.event.inputs.device }}-sukisu-*.zip release-assets/
           
+          # Auto-fetch latest APK based on branch
           if [ "${{ github.event.inputs.sukisu_branch }}" == "Dev(开发)" ]; then
             echo "Fetching latest dev/pre-release APK..."
-            LATEST_DEV=$(curl -s https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases | \
+            LATEST_APK=$(curl -s https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases | \
                          jq -r '.[] | select(.prerelease==true) | .assets[].browser_download_url | select(contains(".apk"))' | \
                          head -1)
-            if [ -n "$LATEST_DEV" ]; then
-              APK_NAME=$(basename "$LATEST_DEV")
-              curl -L "$LATEST_DEV" -o "release-assets/$APK_NAME"
-              echo "Downloaded dev APK: $APK_NAME"
-            else
-              echo "No dev release found, using stable v3.2.0"
-              curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.2.0/SukiSU_v3.2.0_13375-release.apk" \
-                   -o release-assets/SukiSU_v3.2.0_13375-release.apk
-            fi
           else
-            echo "Downloading stable APK v3.2.0..."
-            curl -L "https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases/download/v3.2.0/SukiSU_v3.2.0_13375-release.apk" \
-                 -o release-assets/SukiSU_v3.2.0_13375-release.apk
+            echo "Fetching latest stable APK..."
+            LATEST_APK=$(curl -s https://api.github.com/repos/SukiSU-Ultra/SukiSU-Ultra/releases | \
+                         jq -r '.[] | select(.prerelease==false) | .assets[].browser_download_url | select(contains(".apk"))' | \
+                         head -1)
+          fi
+          
+          if [ -n "$LATEST_APK" ]; then
+            APK_NAME=$(basename "$LATEST_APK")
+            curl -L "$LATEST_APK" -o "release-assets/$APK_NAME"
+            echo "Downloaded APK: $APK_NAME"
+          else
+            echo "WARNING: No APK found, skipping"
           fi
           
           cd release-assets
@@ -658,42 +709,57 @@ jobs:
             DEVICE_NAME="Sony Xperia 5 V"
           fi
           
-          RELEASE_NAME="${{ github.event.inputs.device }} Kernel: SukiSU & SUSFS v1.5.10"
-          echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
+          # Extract SUSFS version from build log
+          SUSFS_VERSION="v1.5.11"
+          if [ -f "artifacts/build-info.txt" ]; then
+            EXTRACTED=$(grep -oP "SUSFS_VERSION: \Kv[0-9]+\.[0-9]+\.[0-9]+" artifacts/build-info.txt || echo "")
+            if [ -n "$EXTRACTED" ]; then
+              SUSFS_VERSION="$EXTRACTED"
+            fi
+          fi
           
-          cat << EOF > release-notes.md
-          This release includes **SukiSU** for ${DEVICE_NAME} (${{ github.event.inputs.device }})
-          on LineageOS 22.2
+          # Create release name
+          RELEASE_NAME="${{ github.event.inputs.device }} Kernel: SukiSU & SUSFS ${SUSFS_VERSION}"
+          echo "RELEASE_NAME<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_NAME" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          # Create release notes
+          cat > release-notes.md << EOF
+          This release includes **SukiSU** for ${DEVICE_NAME} (${{ github.event.inputs.device }}) on LineageOS 22.2
           
           Features:
           -> SukiSU-${{ github.event.inputs.sukisu_branch }}
-          -> SUSFS ඞ v1.5.10
+          -> SUSFS ඞ ${SUSFS_VERSION}
           -> Manual Syscall Hooks for better hiding
           -> Magic Mount Support
           -> KALLSYMS Support
           -> Simple hiding for LineageOS detection
           -> Futile hiding for jit-zygote-cache detection
           -> BBR Support
-          ${{ github.event.inputs.enable_kpm == 'true' && '-> KPM Support' || '-> KPM not supported' }}
-          -> **LZ4KD** ${{ github.event.inputs.enable_zram == 'true' && 'supported' || 'not supported' }}
-          -> LZ4 1.10.0 Upgrade [zzh20188 patch] ${{ github.event.inputs.enable_zram == 'true' && 'enabled' || 'disabled' }}
+          -> KPM ${{ github.event.inputs.enable_kpm == 'true' && 'Support' || 'not supported' }}
+          -> LZ4KD ${{ github.event.inputs.enable_zram == 'true' && 'supported' || 'not supported' }}
+          -> LZ4 1.10.0 ${{ github.event.inputs.enable_zram == 'true' && 'supported' || 'not supported' }}
           
           <details>
-          <summary>Notes:</summary>
-          - -> Device specific build for Sony Xperia with SM8550
-          - -> Based on LineageOS 22.2 kernel source
-          - -> In SUS SU Mode 2, it will show as disabled or incompatible, the reason is that non-kprobe hooks were used (when compiling the kernel), and non-kprobe hooks are no longer needed!
-          - -> In the latest version of susfs, flashing AK3 compressed package with Kernel Flasher will brick your device, try [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher)!
+          <summary>▸ Notes:</summary>
+          
+          - Device specific build for Sony Xperia with SM8550
+          - Based on LineageOS 22.2 kernel source
+          - [Horizon Kernel Flasher](https://github.com/libxzr/HorizonKernelFlasher) ONLY when flashing updates on the fly
+          
           </details>
           
           Modules:
           -> https://github.com/sidex15/ksu_module_susfs
           
-          Manager:
+          SukiSU Manager:
           -> https://github.com/SukiSU-Ultra/SukiSU-Ultra
           
+          LZ4 1.10.0: Upgrade from [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS)
+          
           <details>
-          <summary>Commit Information</summary>
+          <summary>▸ Commit Information</summary>
           
           Build compiled with:
           - **SukiSU Branch**: ${{ github.event.inputs.sukisu_branch == 'Stable(标准)' && 'susfs-main' || 'susfs-test' }}
@@ -701,19 +767,19 @@ jobs:
           - **Base Kernel**: 5.15
           - **Android Version**: 15
           - **LineageOS Base**: 22.2
-          - **Clang Version**: r522817
+          - **Clang Version**: ${{ env.AOSP_CLANG_VERSION }}
           - **Release Version**: ${{ github.event.inputs.release_version }}
-          - **LZ4 1.10.0**: Upgrade from [zzh20188/GKI_KernelSU_SUSFS](https://github.com/zzh20188/GKI_KernelSU_SUSFS)
+          - **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - **Workflow Run**: [#${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
           </details>
           EOF
-
       - name: Install GitHub CLI
         run: |
           type -p gh >/dev/null || {
             sudo apt update
             sudo apt install -y gh
           }
-
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -724,7 +790,6 @@ jobs:
             --notes-file release-notes.md \
             ${{ github.event.inputs.sukisu_branch == 'Dev(开发)' && '--prerelease' || '' }} \
             release-assets/*
-
       - name: Output release URL
         run: |
           echo "Release created successfully!"
