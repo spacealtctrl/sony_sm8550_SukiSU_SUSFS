@@ -30,30 +30,6 @@ Feel free to **fork and continue** for Android 15 users! 😊
 - **LZ4KD** – Advanced ZRAM optimizations  
 - **LZ4 1.10.0** – Upgraded compression algorithm
 
-# LineageOS 22.2 Custom Kernel - SukiSU Ultra for the Sony Xperia 1 V & Sony Xperia 5 V
-
-<img src="https://github.com/spacealtctrl/sm8550_SukiSU_SUSFS/blob/main/assets/sonysuki.png" alt="SukiSU Ultra" width="100" height="150"/>
-
-## Requirements
-
-- **ROM**: LineageOS 22.2 (Android 15)
-- **Device**: Sony Xperia 1 V (pdx234) / Sony Xperia 5 V (pdx237)
-- **Recovery**: [TWRP](https://xdaforums.com/t/recovery-unofficial-updated-teamwin-recovery-project-3-7-1-for-xperia-1v-03-20-2024.4662645/)
-
-## Features
-
-- **SukiSU Ultra** - Advanced root solution with enhanced hiding
-- **SUSFS (ඞ)** - Sophisticated filesystem hiding 
-- **Manual Syscall Hooks** - Better detection evasion
-- **Magic Mount Support** - Systemless modifications
-- **KPM Support** - Kernel Patch Module functionality
-- **BBR TCP** - Optimized network congestion control
-- **KALLSYMS** - Enhanced kernel debugging support
-- **LineageOS Detection Bypass** - Hide custom ROM detection
-- **JIT Zygote Cache Hiding** - Advanced process hiding
-- **LZ4KD** - Advanced ZRAM optimizations
-- **LZ4 1.10.0** - Upgraded compression algorithm
-
 ## Installation
 
 1. Ensure you're running **LineageOS 22.2**
