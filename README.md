@@ -1,5 +1,6 @@
 13th October 2025 – Final update, v1.5.12  
-Moving to Android 16 (LineageOS 23.0), so no longer personally tested. Feel free to **fork and continue** android 15 user 😊!
+Moving to Android 16 (LineageOS 23.0), so no longer personally tested.  
+Feel free to **fork and continue** for Android 15 users! 😊
 
 # LineageOS 22.2 Custom Kernel - SukiSU Ultra for Sony Xperia 1 V & 5 V
 
@@ -24,7 +25,6 @@ Moving to Android 16 (LineageOS 23.0), so no longer personally tested. Feel free
 - **JIT Zygote Cache Hiding** – Advanced process hiding  
 - **LZ4KD** – Advanced ZRAM optimizations  
 - **LZ4 1.10.0** – Upgraded compression algorithm
-
 
 # LineageOS 22.2 Custom Kernel - SukiSU Ultra for the Sony Xperia 1 V & Sony Xperia 5 V
 
