@@ -1,5 +1,5 @@
 ------------------
-⚠️## 13th October 2025 – Final update from me [v1.5.12]  
+## ⚠️13th October 2025 – Final update from me [v1.5.12]  
 Moving to Android 16 (LineageOS 23.0), so no longer personally tested.  
 Feel free to **fork and continue** for Android 15 users! 😊
 
