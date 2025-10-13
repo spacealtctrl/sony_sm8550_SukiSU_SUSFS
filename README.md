@@ -5,6 +5,7 @@ Feel free to **fork and continue** for Android 15 users! 😊
 
 💙spacealtctrl
 ------------------
+
 # LineageOS 22.2 Custom Kernel - SukiSU Ultra for Sony Xperia 1 V & 5 V
 
 <img src="https://github.com/spacealtctrl/sm8550_SukiSU_SUSFS/blob/main/assets/sonysuki.png" alt="SukiSU Ultra" width="100" height="150"/>
