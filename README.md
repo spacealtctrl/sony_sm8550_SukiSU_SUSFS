@@ -3,6 +3,8 @@
 Moving to Android 16 (LineageOS 23.0), so no longer personally tested.  
 Feel free to **fork and continue** for Android 15 users! 😊
 
+[a16_sony_sm8550_SukiSU_SUSFS](https://github.com/spacealtctrl/a16_sony_sm8550_SukiSU_SUSFS)
+
 💙spacealtctrl
 ------------------
 
